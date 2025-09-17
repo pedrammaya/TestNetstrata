@@ -1,0 +1,82 @@
+## Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+## Visual Studio cache/options
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Rider
+.idea/
+
+## Others
+*.swp
+*.*~
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Auto-generated files
+Generated\ Files/
+
+# NuGet
+*.nupkg
+*.snupkg
+*.nuspec
+*.nuget.props
+*.nuget.targets
+.packages
+*.nuget
+
+# Microsoft Visual Studio profiler
+*.psess
+*.vsp
+*.vspx
+*.sap
+
+# DotCover
+*.dotCover
+
+# Tye
+.tye/
+
+# Visual Studio Code
+.history/
+*.code-workspace
+
+# Local tools
+.tools/
+
+# User secrets
+secrets.json
+
+# Resharper
+_ReSharper*/
+*.DotSettings.user
+
+# Coverage
+coverage*
+*.coverage
+*.coveragexml
+
+# Others
+*.tmp
+*.bak
+*.cache
+*.log
+*.ds_store
