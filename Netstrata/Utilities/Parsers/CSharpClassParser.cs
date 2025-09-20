@@ -23,47 +23,61 @@ namespace Netstrata.Utilities.Parsers
         /// </summary>
         private static (CSharpClass cls, int endIndex) ParseClassAt(int classKeywordIndex, string source)
         {
-            var match = RegexPatterns.ClassRegex.Match(source, classKeywordIndex);
-            if (!match.Success || match.Index != classKeywordIndex)
-                throw new ArgumentException("No class found at the provided index.", nameof(classKeywordIndex));
-
+            var match = FindClassMatch(classKeywordIndex, source);
             string className = match.Groups[1].Value;
-
-            int braceOpen = source.IndexOf('{', match.Index);
-            if (braceOpen == -1) throw new FormatException($"Could not find opening brace for class {className}.");
-
-            int braceClose = FindMatchingBrace(source, braceOpen);
-            if (braceClose == -1) throw new FormatException($"Could not find closing brace for class {className}.");
-
-            int classBodyStart = braceOpen + 1;
-            int classBodyLength = braceClose - classBodyStart;
-            string classBody = classBodyLength > 0 ? source.Substring(classBodyStart, classBodyLength) : string.Empty;
+            var (braceOpen, braceClose, classBody) = ExtractClassBody(source, match.Index, className);
 
             var result = new CSharpClass { Name = className };
 
-            // Find nested classes (direct children) - collect their global ranges and parsed CSharpClass
-            var nestedRanges = new List<(int start, int end, CSharpClass parsed)>();
+            var nestedRanges = ParseNestedClasses(classBody, braceOpen + 1, source);
 
+            result.Properties.AddRange(ParseProperties(classBody, braceOpen + 1, nestedRanges));
+            foreach (var r in nestedRanges)
+                result.NestedClasses.Add(r.parsed);
+
+            return (result, braceClose);
+        }
+
+        private static Match FindClassMatch(int classKeywordIndex, string source)
+        {
+            var match = RegexPatterns.ClassRegex.Match(source, classKeywordIndex);
+            if (!match.Success || match.Index != classKeywordIndex)
+                throw new ArgumentException("No class found at the provided index.", nameof(classKeywordIndex));
+            return match;
+        }
+
+        private static (int braceOpen, int braceClose, string classBody) ExtractClassBody(string source, int classMatchIndex, string className)
+        {
+            int braceOpen = source.IndexOf('{', classMatchIndex);
+            if (braceOpen == -1) throw new FormatException($"Could not find opening brace for class {className}.");
+            int braceClose = FindMatchingBrace(source, braceOpen);
+            if (braceClose == -1) throw new FormatException($"Could not find closing brace for class {className}.");
+            int classBodyStart = braceOpen + 1;
+            int classBodyLength = braceClose - classBodyStart;
+            string classBody = classBodyLength > 0 ? source.Substring(classBodyStart, classBodyLength) : string.Empty;
+            return (braceOpen, braceClose, classBody);
+        }
+
+        private static List<(int start, int end, CSharpClass parsed)> ParseNestedClasses(string classBody, int classBodyStart, string source)
+        {
+            var nestedRanges = new List<(int start, int end, CSharpClass parsed)>();
             foreach (Match nestedMatch in RegexPatterns.ClassRegex.Matches(classBody))
             {
                 int nestedGlobalIndex = classBodyStart + nestedMatch.Index;
-
-                // skip if nested match lies inside an already discovered nested range (ensures direct children only)
                 if (nestedRanges.Any(r => nestedGlobalIndex >= r.start && nestedGlobalIndex <= r.end))
                     continue;
-
-                // Parse nested class recursively
                 var (nestedParsed, nestedEndIndex) = ParseClassAt(nestedGlobalIndex, source);
-
                 nestedRanges.Add((nestedGlobalIndex, nestedEndIndex, nestedParsed));
             }
+            return nestedRanges;
+        }
 
-            // Parse properties that are NOT inside any nested class ranges
+        private static List<CSharpProperty> ParseProperties(string classBody, int classBodyStart, List<(int start, int end, CSharpClass parsed)> nestedRanges)
+        {
+            var properties = new List<CSharpProperty>();
             foreach (Match propMatch in RegexPatterns.PropertyRegex.Matches(classBody))
             {
                 int propGlobalIndex = classBodyStart + propMatch.Index;
-
-                // Skip properties that belong to nested classes
                 if (nestedRanges.Any(r => propGlobalIndex >= r.start && propGlobalIndex <= r.end))
                     continue;
 
@@ -73,34 +87,25 @@ namespace Netstrata.Utilities.Parsers
                 bool isNullable = false;
                 string normalizedType = rawType;
 
-                // handle trailing "?" (e.g., long?)
                 if (normalizedType.EndsWith("?"))
                 {
                     isNullable = true;
                     normalizedType = normalizedType[..^1].Trim();
                 }
-
-                // handle Nullable<...>
                 var nullableMatch = Regex.Match(normalizedType, @"^Nullable<\s*(\w+)\s*>$");
                 if (nullableMatch.Success)
                 {
                     isNullable = true;
                     normalizedType = nullableMatch.Groups[1].Value;
                 }
-
-                result.Properties.Add(new CSharpProperty
+                properties.Add(new CSharpProperty
                 {
                     Name = propName,
                     Type = normalizedType,
                     IsNullable = isNullable
                 });
             }
-
-            // Attach nested parsed classes to the result (preserve order)
-            foreach (var r in nestedRanges)
-                result.NestedClasses.Add(r.parsed);
-
-            return (result, braceClose);
+            return properties;
         }
 
         /// <summary>
